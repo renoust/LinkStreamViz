@@ -124,7 +124,8 @@ class LinkStream:
 		cur_solution = self.nodeID.lookUp
 		cur_reverse = self.nodeID.reverse
 		dist = self.evaluateOrder(cur_solution)
-		sys.stderr.write("Order improved from "+str(dist))
+		#sys.stderr.write("Order improved from "+str(dist))
+		
 		for i in range(0, 10000):
 		    i = random.randint(0, len(cur_solution) - 1)
 		    j = random.randint(0, len(cur_solution) - 1)
@@ -140,11 +141,13 @@ class LinkStream:
 		    else:
 				dist = tmp
 		self.nodeID.lookUp = cur_solution
-		new_order = "new_order.txt"
-		with open(new_order, "w") as out:
-		    for node in self.nodeID.reverse:
-				out.write(str(self.nodeID.reverse[node]) + "\n")
-		sys.stderr.write(" to "+str(dist)+". Order saved in:"+new_order+"\n")
+		
+		#new_order = "new_order.txt"
+		#with open(new_order, "w") as out:
+		#    for node in self.nodeID.reverse:
+		#		out.write(str(self.nodeID.reverse[node]) + "\n")
+
+		#sys.stderr.write(" to "+str(dist)+". Order saved in:"+new_order+"\n")
 
 class LoadLinkflow(tlp.ImportModule):
 	def __init__(self, context):
@@ -157,6 +160,14 @@ class LoadLinkflow(tlp.ImportModule):
 										 "Path to the ordering file .txt",\
 										 "",\
 										 True)
+
+		self.addFloatParameter("Width per unit of time", "width of a node in the flow", "10", True)
+		self.addFloatParameter("Edge bent", "width of something in the flow", "10", True)
+		self.addFloatParameter("Height per layer", "height of a layer in the flow", "10", True)
+		self.addBooleanParameter("Draw link flow", "draws the link flow", "True", True)
+		self.addBooleanParameter("Draw multiplex projection", "draws the multiplex projection", "True", True)
+		self.addBooleanParameter("Draw flat projection", "draws the flat projection", "True", True)
+		self.addBooleanParameter("Force layout", "draws the projections with FM^3", "True", True)
 		
 
 	def importGraph(self):
@@ -172,67 +183,129 @@ class LoadLinkflow(tlp.ImportModule):
 		
 	def draw_tulip(self, _links):
 		
-		print "drawing for tulip"
+		widthMargin = self.dataSet["Edge bent"]
+		heightMargin = self.dataSet["Height per layer"]
+		pixelPerUnitOfTime = self.dataSet["Width per unit of time"]
+		linkFlow = self.dataSet["Draw link flow"]
+		multiProj = self.dataSet["Draw multiplex projection"]
+		simpleProj = self.dataSet["Draw flat projection"]
 		
 		_links.findOrder()
-		offset = 1.5 * _links.ppux
-		# Define dimensions
-
-		label_margin = 5 * _links.max_label_len
-		origleft = label_margin + 1 * _links.ppux
-		right_margin = _links.ppux
-
-		width = origleft + _links.ppux * math.ceil(_links.max_time) + right_margin
-		arrow_of_time_height = 5
-		height = 5 + 10 * int(_links.nodeID.size() + 1) + arrow_of_time_height
 		
-		origtop = 10
-
 		################
 		# Draw background lines
 		vL = self.graph.getLayoutProperty("viewLayout")
 		vC = self.graph.getColorProperty("viewColor")
 		vS = self.graph.getIntegerProperty("viewShape")
 		vLabel = self.graph.getStringProperty("viewLabel")
-		
+		origin = self.graph.getStringProperty("__original_node__")
+		timeStamp = self.graph.getDoubleProperty("__timeStamp__")
+		duration = self.graph.getDoubleProperty("__duration__")
+		direction = self.graph.getDoubleProperty("__direction__")
+		tlp_bezier_curve_shape = 4
 		axisToLabel = {}
 		n2axis = {}
+		lg = None
+		sg = None
+		mg = None
 		
-		for node in _links.nodeID.lookUp:
-			
-		    horizonta_axe = _links.ppux * _links.nodeID.get(node) + origtop
+		
+		nodeToTLP = {}
+
+		for node in _links.nodeID.lookUp:			
+		    horizonta_axe = heightMargin * _links.nodeID.get(node)
 		    axisToLabel[horizonta_axe] = str(node)
+		    if multiProj or simpleProj:
+		    	n = self.graph.addNode()
+		    	origin[n] = str(node)
+		    	nodeToTLP[horizonta_axe] = n
+
+		if linkFlow:
+			lg = self.graph.addSubGraph()
+			lg.setName("Link flow")
+			
+		if multiProj:
+			mg = self.graph.inducedSubGraph(nodeToTLP.values())
+			mg.setName("Multiplex graph")
+
+		if simpleProj:
+			sg = self.graph.inducedSubGraph(nodeToTLP.values())
+			sg.setName("Simple graph")
+			timeStamps = self.graph.getDoubleVectorProperty("__timeStampList__")
+			durations = self.graph.getDoubleVectorProperty("__durationList__")
+			directions = self.graph.getDoubleVectorProperty("__directionList__")
+
 
 		for link in _links.links:
 		    ts = link.t
 		    node_1 = min(_links.nodeID.get(link.u), _links.nodeID.get(link.v))
 		    node_2 = max(_links.nodeID.get(link.u), _links.nodeID.get(link.v))
-		    offset = ts * _links.ppux + origleft
+		    offset = ts * pixelPerUnitOfTime
 		    
-		    y_node1 = 10 * node_1 + origtop
-		    y_node2 = 10 * node_2 + origtop
+		    y_node1 = heightMargin * node_1
+		    y_node2 = heightMargin * node_2
 		    
 		    color = [int(c.strip()) for c in link.color.replace('rgb(','').replace(')','').split(',')]
 		    color = tlp.Color(color[0], color[1], color[2])
-
-		    n1 = self.graph.addNode()
-		    vL[n1] = tlp.Coord(offset, y_node1)
-		    vLabel[n1] = axisToLabel[y_node1]
-		    vC[n1] = color
-
-		    n2 = self.graph.addNode()
-		    vL[n2] = tlp.Coord(offset, y_node2)
-		    vLabel[n2] = axisToLabel[y_node2]
-		    vC[n2] = tlp.Color(color)
-			 
-		    x = 0.2 * ((10 * node_2 - 10 * node_1) / math.tan(math.pi / 3)) + offset
-		    y = (y_node1 + y_node2) / 2
 		    
-		    e = self.graph.addEdge(n1, n2)
-		    vL[e] = [tlp.Coord(x, y)]
-		    vS[e] = 4
-		    vC[e] = tlp.Color(color)
+		    
+		    if linkFlow:
+			    n1 = lg.addNode()
+			    vL[n1] = tlp.Coord(offset, y_node1)
+			    vLabel[n1] = axisToLabel[y_node1]
+			    origin[n1] = axisToLabel[y_node1]
+			    vC[n1] = color
+	
+			    n2 = lg.addNode()
+			    vL[n2] = tlp.Coord(offset, y_node2)
+			    origin[n2] = axisToLabel[y_node2]
+			    vLabel[n2] = axisToLabel[y_node2]
+			    vC[n2] = tlp.Color(color)
+				 
+			    x = 0.2 * ((widthMargin * node_2 - widthMargin * node_1) / math.tan(math.pi / 3)) + offset
+			    y = (y_node1 + y_node2) / 2
+			    
+			    e = lg.addEdge(n1, n2)
+			    timeStamp[e] = ts
+			    direction[e] = link.direction
+			    duration[e] = link.duration
+			    vL[e] = [tlp.Coord(x, y)]
+			    vS[e] = tlp_bezier_curve_shape
+			    vC[e] = tlp.Color(color)
+			    
+		    if multiProj or simpleProj:
+		    	n1 = nodeToTLP[y_node1]
+		    	n2 = nodeToTLP[y_node2]
+		    	if simpleProj:
+		    		e = sg.existEdge(n1, n2, False)
+		    		if not e.isValid():
+		    			e = sg.addEdge(n1, n2)
+		    		tSList = timeStamps[e]
+		    		tSList.append(ts)
+		    		timeStamps[e] = tSList
+		    		durList = durations[e]
+		    		durList.append(link.duration)
+		    		durations[e] = durList
+		    		dirList = directions[e]
+		    		dirList.append(link.direction)
+		    		directions[e] = dirList
+		    			
+		    	if multiProj:
+		    		e = mg.addEdge(n1, n2)
+		    		timeStamp[e] = ts
+		    		direction[e] = link.direction
+		    		duration[e] = link.duration
+		    		vC[e] = tlp.Color(color)
 
+		if self.dataSet["Force layout"]:
+			if multiProj:
+				vL = mg.getLayoutProperty("viewLayout")
+				mg.applyLayoutAlgorithm("FM^3 (OGDF)", vL)
+			 
+			if simpleProj:
+				vL = sg.getLayoutProperty("viewLayout")
+				sg.applyLayoutAlgorithm("FM^3 (OGDF)", vL)
+	
 # The line below does the magic to register the plugin to the plugin database
 # and updates the GUI to make it accessible through the menus.
 tulipplugins.registerPluginOfGroup("LoadLinkflow", "Load a linkflow", "Benjamin Renoust & Jordan Viard", "15/06/2015", "Loads a linkflow", "1.0", "Linkflow")
