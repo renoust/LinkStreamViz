@@ -38,8 +38,8 @@ class Link:
 
     def __init__(self, t, u, v, color="black", direction=0, duration=0, duration_color="black"):
     	self.t = float(t)
-    	self.u = int(min(u, v))
-    	self.v = int(max(u, v))
+    	self.u = str(min(u, v))
+    	self.v = str(max(u, v))
     	self.color = color
     	self.direction = direction
     	self.duration = duration
@@ -50,10 +50,10 @@ class Link:
 		obj = Link(link["time"],
 				   link["from"],
 				   link["to"])
-		obj.color = link.get("color", "black")
+		obj.color = link.get("color", "rgb(0,0,0)")
 		obj.direction = link.get("direction", 0)
 		obj.duration = float(link.get("duration", 0))
-		obj.duration_color = link.get("duration_color", "black")
+		obj.duration_color = link.get("duration_color", "rgb(0,0,0)")
 		return obj
 
 
@@ -81,8 +81,8 @@ class LinkStream:
 				for line in inFile:
 				    contents = line.split(" ")
 				    t = float(contents[0])
-				    u = int(contents[1])
-				    v = int(contents[2])
+				    u = str(contents[1])
+				    v = str(contents[2])
 				    d = 0
 				    if len(contents) > 3:
 						d = float(contents[3])
@@ -149,11 +149,11 @@ class LinkStream:
 
 		#sys.stderr.write(" to "+str(dist)+". Order saved in:"+new_order+"\n")
 
-class LoadLinkflow(tlp.ImportModule):
+class LoadLinkStream(tlp.ImportModule):
 	def __init__(self, context):
 		tlp.ImportModule.__init__(self, context)
-		self.addStringParameter("Path - linkflow",\
-										 "Path to the linkflow file .json or .txt",\
+		self.addStringParameter("Path - linkstream",\
+										 "Path to the linkstream file .json or .txt",\
 										 "/work/localdata/Thiers-highschool-linkflow/LinkStreamViz/tests/test2.json",\
 										 True)
 		self.addStringParameter("Path - ordering",\
@@ -161,17 +161,17 @@ class LoadLinkflow(tlp.ImportModule):
 										 "",\
 										 True)
 
-		self.addFloatParameter("Width per unit of time", "width of a node in the flow", "10", True)
-		self.addFloatParameter("Edge bent", "width of something in the flow", "10", True)
-		self.addFloatParameter("Height per layer", "height of a layer in the flow", "10", True)
-		self.addBooleanParameter("Draw link flow", "draws the link flow", "True", True)
+		self.addFloatParameter("Width per unit of time", "width of a node in the stream", "10", True)
+		self.addFloatParameter("Edge bent", "width of something in the stream", "10", True)
+		self.addFloatParameter("Height per layer", "height of a layer in the stream", "10", True)
+		self.addBooleanParameter("Draw link stream", "draws the link stream", "True", True)
 		self.addBooleanParameter("Draw multiplex projection", "draws the multiplex projection", "True", True)
 		self.addBooleanParameter("Draw flat projection", "draws the flat projection", "True", True)
 		self.addBooleanParameter("Force layout", "draws the projections with FM^3", "True", True)
 		
 
 	def importGraph(self):
-		fPath = self.dataSet["Path - linkflow"]
+		fPath = self.dataSet["Path - linkstream"]
 		order = self.dataSet["Path - ordering"]
 		if order == None:
 			order = ""
@@ -186,7 +186,7 @@ class LoadLinkflow(tlp.ImportModule):
 		widthMargin = self.dataSet["Edge bent"]
 		heightMargin = self.dataSet["Height per layer"]
 		pixelPerUnitOfTime = self.dataSet["Width per unit of time"]
-		linkFlow = self.dataSet["Draw link flow"]
+		linkStream = self.dataSet["Draw link stream"]
 		multiProj = self.dataSet["Draw multiplex projection"]
 		simpleProj = self.dataSet["Draw flat projection"]
 		
@@ -220,9 +220,9 @@ class LoadLinkflow(tlp.ImportModule):
 		    	origin[n] = str(node)
 		    	nodeToTLP[horizonta_axe] = n
 
-		if linkFlow:
+		if linkStream:
 			lg = self.graph.addSubGraph()
-			lg.setName("Link flow")
+			lg.setName("Link stream")
 			
 		if multiProj:
 			mg = self.graph.inducedSubGraph(nodeToTLP.values())
@@ -249,18 +249,20 @@ class LoadLinkflow(tlp.ImportModule):
 		    color = tlp.Color(color[0], color[1], color[2])
 		    
 		    
-		    if linkFlow:
+		    if linkStream:
 			    n1 = lg.addNode()
 			    vL[n1] = tlp.Coord(offset, y_node1)
 			    vLabel[n1] = axisToLabel[y_node1]
 			    origin[n1] = axisToLabel[y_node1]
 			    vC[n1] = color
+			    timeStamp[n1] = ts
 	
 			    n2 = lg.addNode()
 			    vL[n2] = tlp.Coord(offset, y_node2)
 			    origin[n2] = axisToLabel[y_node2]
 			    vLabel[n2] = axisToLabel[y_node2]
 			    vC[n2] = tlp.Color(color)
+			    timeStamp[n2] = ts
 				 
 			    x = 0.2 * ((widthMargin * node_2 - widthMargin * node_1) / math.tan(math.pi / 3)) + offset
 			    y = (y_node1 + y_node2) / 2
@@ -306,6 +308,4 @@ class LoadLinkflow(tlp.ImportModule):
 				vL = sg.getLayoutProperty("viewLayout")
 				sg.applyLayoutAlgorithm("FM^3 (OGDF)", vL)
 	
-# The line below does the magic to register the plugin to the plugin database
-# and updates the GUI to make it accessible through the menus.
-tulipplugins.registerPluginOfGroup("LoadLinkflow", "Load a linkflow", "Benjamin Renoust & Jordan Viard", "15/06/2015", "Loads a linkflow", "1.0", "Linkflow")
+tulipplugins.registerPluginOfGroup("LoadLinkStream", "Load a linkstream", "Benjamin Renoust & Jordan Viard", "15/06/2015", "Loads a link stream", "1.0", "LinkStream")
